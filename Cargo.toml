@@ -1,0 +1,108 @@
+[package]
+name = "rust_advanced_course"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "Продвинутый курс по Rust для Senior разработчиков"
+license = "MIT"
+repository = "https://github.com/yourusername/rust_advanced_course"
+readme = "README.md"
+keywords = ["rust", "course", "advanced", "tutorial"]
+categories = ["education", "development-tools"]
+
+[dependencies]
+# Основные зависимости
+tokio = { version = "1.28", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }  # Сериализация/десериализация
+serde_json = "1.0"  # Работа с JSON
+chrono = { version = "0.4", features = ["serde"] }  # Работа с датами и временем
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono"] }
+futures = "0.3"  # Асинхронные примитивы
+async-trait = "0.1"  # Асинхронные трейты
+thiserror = "1.0"  # Улучшенная обработка ошибок
+anyhow = "1.0"  # Упрощенная обработка ошибок
+rayon = "1.7"  # Параллельное программирование
+criterion = "0.5"  # Бенчмаркинг
+tracing = "0.1"
+tracing-subscriber = "0.3"
+env_logger = "0.10"  # Реализация логгера
+log = "0.4"  # Логирование
+uuid = { version = "1.7", features = ["v4", "serde"] }  # Генерация UUID
+crossbeam = "0.8"  # Продвинутые примитивы синхронизации
+parking_lot = "0.12"  # Эффективные примитивы синхронизации
+reqwest = { version = "0.11", features = ["json"] }
+mockall = "0.11"
+dashmap = "5.4"
+bytes = "1.4"
+futures-util = "0.3"
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+tower = "0.4"
+tower-http = { version = "0.4", features = ["trace"] }
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+opentelemetry = { version = "0.20", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "0.19", features = ["rt-tokio"] }
+clap = { version = "4.3", features = ["derive"] }
+config = "0.13"
+dotenv = "0.15"
+tempfile = "3.8"
+indicatif = "0.17"
+colored = "2.0"
+backtrace = "0.3"
+memoffset = "0.9"
+libc = "0.2"
+winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "handleapi"] }
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+embedded-hal = "0.2"
+nb = "1.0"
+panic-halt = "0.2"
+cortex-m-semihosting = "0.5"
+heapless = "0.7"
+heapless-bytes = "0.2"
+heapless-multimap = "0.1"
+heapless-vec = "0.1"
+heapless-binary-heap = "0.1"
+heapless-indexmap = "0.1"
+heapless-linear-map = "0.1"
+heapless-pool = "0.1"
+heapless-spsc = "0.1"
+heapless-mpsc = "0.1"
+heapless-channel = "0.1"
+heapless-sync = "0.1"
+heapless-time = "0.1"
+heapless-timer = "0.1"
+heapless-queue = "0.1"
+heapless-ring-buffer = "0.1"
+heapless-fifo = "0.1"
+heapless-lru = "0.1"
+heapless-cache = "0.1"
+heapless-hashmap = "0.1"
+heapless-btreemap = "0.1"
+heapless-btreeset = "0.1"
+heapless-hashset = "0.1"
+heapless-linkedlist = "0.1"
+heapless-stack = "0.1"
+heapless-arrayvec = "0.1"
+heapless-string = "0.1"
+
+[dev-dependencies]
+mockall = "0.12"  # Моки для тестирования
+proptest = "1.4"  # Тестирование свойств
+tokio-test = "0.4"  # Тестирование асинхронного кода
+test-log = "0.2"  # Логирование в тестах
+tokio-test-util = "0.4"  # Утилиты для тестирования tokio
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = 'abort'
+opt-level = 3
+
+[profile.dev]
+debug = 2
