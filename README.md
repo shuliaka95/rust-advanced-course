@@ -184,7 +184,7 @@ src/
 
 ## Автор
 
-Your Name - [@yourusername](https://github.com/yourusername)
+Your Name - [Efanasiy](https://github.com/shuliaka95)
 
 ## Благодарности
 
