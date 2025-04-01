@@ -1,140 +1,200 @@
-//! Демонстрация алгоритмов в Rust
+//! Модуль для демонстрации алгоритмов в Rust
 //! 
-//! Этот модуль показывает основные концепции:
-//! - Поиск
+//! Этот модуль показывает различные алгоритмы:
 //! - Сортировка
-//! - Обход графов
+//! - Поиск
+//! - Графовые алгоритмы
 //! - Динамическое программирование
-//! - Жадные алгоритмы
 
-use std::collections::{HashMap, HashSet};
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use std::iter::FromIterator;
 
-// Бинарный поиск
-fn binary_search<T: Ord>(arr: &[T], target: &T) -> Option<usize> {
-    let mut left = 0;
-    let mut right = arr.len();
-
-    while left < right {
-        let mid = (left + right) / 2;
-        match arr[mid].cmp(target) {
-            std::cmp::Ordering::Equal => return Some(mid),
-            std::cmp::Ordering::Less => left = mid + 1,
-            std::cmp::Ordering::Greater => right = mid,
-        }
-    }
-    None
+/// Структура для сортируемых элементов
+#[derive(Debug, Clone, PartialEq)]
+pub struct SortableItem {
+    pub id: i32,
+    pub value: f64,
+    pub metadata: String,
 }
 
-// Сортировка пузырьком
-fn bubble_sort<T: Ord>(arr: &mut [T]) {
-    let n = arr.len();
-    for i in 0..n {
-        for j in 0..n - i - 1 {
-            if arr[j] > arr[j + 1] {
-                arr.swap(j, j + 1);
-            }
+impl SortableItem {
+    /// Создание нового элемента
+    pub fn new(id: i32, value: f64, metadata: String) -> Self {
+        Self {
+            id,
+            value,
+            metadata,
         }
     }
 }
 
-// Обход графа в глубину
-fn dfs(graph: &HashMap<i32, Vec<i32>>, start: i32) -> Vec<i32> {
-    let mut visited = HashSet::new();
-    let mut result = Vec::new();
+/// Реализация алгоритмов сортировки
+pub struct SortingAlgorithms;
 
-    fn dfs_recursive(
-        graph: &HashMap<i32, Vec<i32>>,
-        node: i32,
-        visited: &mut HashSet<i32>,
-        result: &mut Vec<i32>,
-    ) {
-        if visited.contains(&node) {
+impl SortingAlgorithms {
+    /// Быстрая сортировка
+    pub fn quick_sort<T: Ord>(arr: &mut [T]) {
+        if arr.len() <= 1 {
             return;
         }
-        visited.insert(node);
-        result.push(node);
-        if let Some(neighbors) = graph.get(&node) {
-            for &neighbor in neighbors {
-                dfs_recursive(graph, neighbor, visited, result);
+
+        let pivot = partition(arr);
+        let (left, right) = arr.split_at_mut(pivot);
+        
+        Self::quick_sort(left);
+        Self::quick_sort(&mut right[1..]);
+    }
+
+    /// Сортировка слиянием
+    pub fn merge_sort<T: Ord + Clone>(arr: &mut [T]) {
+        if arr.len() <= 1 {
+            return;
+        }
+
+        let mid = arr.len() / 2;
+        let (left, right) = arr.split_at_mut(mid);
+        
+        Self::merge_sort(left);
+        Self::merge_sort(right);
+        
+        merge(arr, left, right);
+    }
+
+    /// Сортировка вставками
+    pub fn insertion_sort<T: Ord>(arr: &mut [T]) {
+        for i in 1..arr.len() {
+            let mut j = i;
+            while j > 0 && arr[j - 1] > arr[j] {
+                arr.swap(j - 1, j);
+                j -= 1;
             }
         }
     }
 
-    dfs_recursive(graph, start, &mut visited, &mut result);
-    result
+    /// Сортировка кучей (Heap Sort)
+    pub fn heap_sort<T: Ord>(arr: &mut [T]) {
+        let mut heap = BinaryHeap::from_iter(arr.iter());
+        for i in (0..arr.len()).rev() {
+            if let Some(max) = heap.pop() {
+                arr[i] = *max;
+            }
+        }
+    }
 }
 
-// Динамическое программирование: числа Фибоначчи
-fn fibonacci_dp(n: u32) -> u64 {
-    if n <= 1 {
-        return n as u64;
+/// Реализация алгоритмов поиска
+pub struct SearchingAlgorithms;
+
+impl SearchingAlgorithms {
+    /// Бинарный поиск
+    pub fn binary_search<T: Ord>(arr: &[T], target: &T) -> Option<usize> {
+        let mut left = 0;
+        let mut right = arr.len();
+
+        while left < right {
+            let mid = (left + right) / 2;
+            match arr[mid].cmp(target) {
+                Ordering::Equal => return Some(mid),
+                Ordering::Less => left = mid + 1,
+                Ordering::Greater => right = mid,
+            }
+        }
+
+        None
     }
-    let mut dp = vec![0; (n + 1) as usize];
-    dp[0] = 0;
-    dp[1] = 1;
-    for i in 2..=n as usize {
-        dp[i] = dp[i - 1] + dp[i - 2];
+
+    /// Линейный поиск
+    pub fn linear_search<T: PartialEq>(arr: &[T], target: &T) -> Option<usize> {
+        arr.iter().position(|x| x == target)
     }
-    dp[n as usize]
+
+    /// Поиск с использованием хеш-таблицы
+    pub fn hash_search<T: Eq + std::hash::Hash>(
+        arr: &[T],
+        target: &T,
+    ) -> Option<usize> {
+        use std::collections::HashMap;
+        
+        let mut hash_map = HashMap::new();
+        for (i, item) in arr.iter().enumerate() {
+            hash_map.insert(item, i);
+        }
+        
+        hash_map.get(target).copied()
+    }
 }
 
-// Жадный алгоритм: размен монет
-fn coin_change(coins: &[u32], amount: u32) -> Option<Vec<u32>> {
-    let mut result = Vec::new();
-    let mut remaining = amount;
-    let mut coins = coins.to_vec();
-    coins.sort_by(|a, b| b.cmp(a)); // Сортировка по убыванию
+/// Демонстрация алгоритмов
+pub fn demonstrate_algorithms() -> Result<(), Box<dyn std::error::Error>> {
+    // Демонстрация сортировки
+    let mut items = vec![
+        SortableItem::new(1, 3.14, "Пи".to_string()),
+        SortableItem::new(2, 2.71, "e".to_string()),
+        SortableItem::new(3, 1.41, "√2".to_string()),
+    ];
 
-    for &coin in &coins {
-        while remaining >= coin {
-            result.push(coin);
-            remaining -= coin;
+    println!("До сортировки: {:?}", items);
+    SortingAlgorithms::quick_sort(&mut items);
+    println!("После быстрой сортировки: {:?}", items);
+
+    // Демонстрация поиска
+    let numbers = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let target = 7;
+
+    if let Some(index) = SearchingAlgorithms::binary_search(&numbers, &target) {
+        println!("Число {} найдено по индексу {}", target, index);
+    } else {
+        println!("Число {} не найдено", target);
+    }
+
+    Ok(())
+}
+
+// Вспомогательные функции
+
+fn partition<T: Ord>(arr: &mut [T]) -> usize {
+    let len = arr.len();
+    let pivot = len - 1;
+    let mut store_index = 0;
+
+    for i in 0..len - 1 {
+        if arr[i] <= arr[pivot] {
+            arr.swap(i, store_index);
+            store_index += 1;
         }
     }
 
-    if remaining == 0 {
-        Some(result)
-    } else {
-        None
-    }
+    arr.swap(pivot, store_index);
+    store_index
 }
 
-pub fn demonstrate_algorithms() {
-    println!("\n1. Демонстрация бинарного поиска:");
-    let arr = vec![1, 3, 5, 7, 9];
-    let target = 5;
-    match binary_search(&arr, &target) {
-        Some(index) => println!("Число {} найдено по индексу {}", target, index),
-        None => println!("Число {} не найдено", target),
+fn merge<T: Ord + Clone>(arr: &mut [T], left: &[T], right: &[T]) {
+    let mut i = 0;
+    let mut j = 0;
+    let mut k = 0;
+
+    while i < left.len() && j < right.len() {
+        if left[i] <= right[j] {
+            arr[k] = left[i].clone();
+            i += 1;
+        } else {
+            arr[k] = right[j].clone();
+            j += 1;
+        }
+        k += 1;
     }
 
-    println!("\n2. Демонстрация сортировки пузырьком:");
-    let mut arr = vec![5, 3, 8, 4, 2];
-    println!("До сортировки: {:?}", arr);
-    bubble_sort(&mut arr);
-    println!("После сортировки: {:?}", arr);
+    while i < left.len() {
+        arr[k] = left[i].clone();
+        i += 1;
+        k += 1;
+    }
 
-    println!("\n3. Демонстрация обхода графа в глубину:");
-    let mut graph = HashMap::new();
-    graph.insert(1, vec![2, 3]);
-    graph.insert(2, vec![4, 5]);
-    graph.insert(3, vec![6]);
-    graph.insert(4, vec![]);
-    graph.insert(5, vec![]);
-    graph.insert(6, vec![]);
-    let result = dfs(&graph, 1);
-    println!("Обход графа: {:?}", result);
-
-    println!("\n4. Демонстрация динамического программирования:");
-    let n = 20;
-    println!("Фибоначчи({}) = {}", n, fibonacci_dp(n));
-
-    println!("\n5. Демонстрация жадного алгоритма:");
-    let coins = vec![1, 5, 10, 25];
-    let amount = 67;
-    match coin_change(&coins, amount) {
-        Some(result) => println!("Размен {}: {:?}", amount, result),
-        None => println!("Невозможно разменять {}", amount),
+    while j < right.len() {
+        arr[k] = right[j].clone();
+        j += 1;
+        k += 1;
     }
 }
 
@@ -143,31 +203,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_quick_sort() {
+        let mut arr = vec![3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5];
+        SortingAlgorithms::quick_sort(&mut arr);
+        assert_eq!(arr, vec![1, 1, 2, 3, 3, 4, 5, 5, 5, 6, 9]);
+    }
+
+    #[test]
+    fn test_merge_sort() {
+        let mut arr = vec![3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5];
+        SortingAlgorithms::merge_sort(&mut arr);
+        assert_eq!(arr, vec![1, 1, 2, 3, 3, 4, 5, 5, 5, 6, 9]);
+    }
+
+    #[test]
     fn test_binary_search() {
-        let arr = vec![1, 3, 5, 7, 9];
-        assert_eq!(binary_search(&arr, &5), Some(2));
-        assert_eq!(binary_search(&arr, &4), None);
-    }
-
-    #[test]
-    fn test_bubble_sort() {
-        let mut arr = vec![5, 3, 8, 4, 2];
-        bubble_sort(&mut arr);
-        assert_eq!(arr, vec![2, 3, 4, 5, 8]);
-    }
-
-    #[test]
-    fn test_fibonacci_dp() {
-        assert_eq!(fibonacci_dp(0), 0);
-        assert_eq!(fibonacci_dp(1), 1);
-        assert_eq!(fibonacci_dp(2), 1);
-        assert_eq!(fibonacci_dp(3), 2);
-    }
-
-    #[test]
-    fn test_coin_change() {
-        let coins = vec![1, 5, 10, 25];
-        assert_eq!(coin_change(&coins, 67), Some(vec![25, 25, 10, 5, 1, 1]));
-        assert_eq!(coin_change(&coins, 0), Some(vec![]));
+        let arr = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        assert_eq!(SearchingAlgorithms::binary_search(&arr, &7), Some(6));
+        assert_eq!(SearchingAlgorithms::binary_search(&arr, &11), None);
     }
 } 

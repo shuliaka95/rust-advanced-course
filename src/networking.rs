@@ -1,124 +1,203 @@
-//! Демонстрация сетевого программирования в Rust
+//! Модуль для демонстрации сетевого программирования в Rust
 //! 
-//! Этот модуль показывает основные концепции:
-//! - HTTP сервер
+//! Этот модуль показывает различные аспекты сетевого программирования:
+//! - HTTP клиент/сервер
 //! - WebSocket
-//! - UDP
-//! - TCP
-//! - Сетевые протоколы
+//! - TCP/UDP
+//! - Асинхронные сетевые операции
 
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::error::Error;
+use std::net::SocketAddr;
+use tokio::time::{timeout, Duration};
 
-// Простой TCP сервер
-async fn tcp_server() -> Result<(), Box<dyn Error>> {
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;
-    println!("TCP сервер запущен на 127.0.0.1:8080");
-
-    while let Ok((mut socket, addr)) = listener.accept().await {
-        println!("Новое подключение: {}", addr);
-        tokio::spawn(async move {
-            let mut buf = [0; 1024];
-            loop {
-                let n = match socket.read(&mut buf).await {
-                    Ok(n) if n == 0 => return,
-                    Ok(n) => n,
-                    Err(e) => {
-                        eprintln!("Ошибка чтения: {}", e);
-                        return;
-                    }
-                };
-
-                if let Err(e) = socket.write_all(&buf[0..n]).await {
-                    eprintln!("Ошибка записи: {}", e);
-                    return;
-                }
-            }
-        });
-    }
-
-    Ok(())
+/// Реализация HTTP сервера
+pub struct HttpServer {
+    addr: SocketAddr,
 }
 
-// Простой UDP сервер
-async fn udp_server() -> Result<(), Box<dyn Error>> {
-    let socket = UdpSocket::bind("127.0.0.1:8081").await?;
-    println!("UDP сервер запущен на 127.0.0.1:8081");
+impl HttpServer {
+    /// Создание нового HTTP сервера
+    pub fn new(addr: SocketAddr) -> Self {
+        Self { addr }
+    }
 
-    let mut buf = [0; 1024];
-    loop {
-        let (n, addr) = socket.recv_from(&mut buf).await?;
-        println!("Получено {} байт от {}", n, addr);
+    /// Запуск сервера
+    pub async fn run(&self) -> Result<(), Box<dyn Error>> {
+        let listener = TcpListener::bind(self.addr).await?;
+        println!("HTTP сервер запущен на {}", self.addr);
 
-        if let Err(e) = socket.send_to(&buf[0..n], addr).await {
-            eprintln!("Ошибка отправки: {}", e);
+        loop {
+            let (socket, addr) = listener.accept().await?;
+            println!("Новое подключение от {}", addr);
+            
+            tokio::spawn(async move {
+                if let Err(e) = handle_connection(socket).await {
+                    eprintln!("Ошибка обработки соединения: {}", e);
+                }
+            });
         }
     }
 }
 
-// Простой TCP клиент
-async fn tcp_client() -> Result<(), Box<dyn Error>> {
-    let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
-    println!("Подключено к серверу");
+/// Реализация WebSocket клиента
+pub struct WebSocketClient {
+    addr: SocketAddr,
+}
 
-    stream.write_all(b"Привет, сервер!").await?;
-    let mut buf = [0; 1024];
-    let n = stream.read(&mut buf).await?;
-    println!("Получено: {}", String::from_utf8_lossy(&buf[0..n]));
+impl WebSocketClient {
+    /// Создание нового WebSocket клиента
+    pub fn new(addr: SocketAddr) -> Self {
+        Self { addr }
+    }
+
+    /// Подключение к серверу
+    pub async fn connect(&self) -> Result<TcpStream, Box<dyn Error>> {
+        let stream = TcpStream::connect(self.addr).await?;
+        println!("Подключено к WebSocket серверу на {}", self.addr);
+        Ok(stream)
+    }
+
+    /// Отправка сообщения
+    pub async fn send_message(&self, stream: &mut TcpStream, message: &str) -> Result<(), Box<dyn Error>> {
+        stream.write_all(message.as_bytes()).await?;
+        Ok(())
+    }
+
+    /// Получение сообщения
+    pub async fn receive_message(&self, stream: &mut TcpStream) -> Result<String, Box<dyn Error>> {
+        let mut buffer = [0; 1024];
+        let n = stream.read(&mut buffer).await?;
+        Ok(String::from_utf8_lossy(&buffer[..n]).to_string())
+    }
+}
+
+/// Реализация UDP сервера
+pub struct UdpServer {
+    addr: SocketAddr,
+}
+
+impl UdpServer {
+    /// Создание нового UDP сервера
+    pub fn new(addr: SocketAddr) -> Self {
+        Self { addr }
+    }
+
+    /// Запуск сервера
+    pub async fn run(&self) -> Result<(), Box<dyn Error>> {
+        let socket = UdpSocket::bind(self.addr).await?;
+        println!("UDP сервер запущен на {}", self.addr);
+
+        let mut buf = [0; 1024];
+        loop {
+            let (size, addr) = socket.recv_from(&mut buf).await?;
+            println!("Получено {} байт от {}", size, addr);
+
+            // Эхо-ответ
+            socket.send_to(&buf[..size], addr).await?;
+        }
+    }
+}
+
+/// Обработка HTTP соединения
+async fn handle_connection(mut socket: TcpStream) -> Result<(), Box<dyn Error>> {
+    let mut buffer = [0; 1024];
+    let n = socket.read(&mut buffer).await?;
+    
+    let request = String::from_utf8_lossy(&buffer[..n]);
+    println!("Получен запрос:\n{}", request);
+
+    // Простой HTTP ответ
+    let response = "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\nHello, World!";
+    socket.write_all(response.as_bytes()).await?;
 
     Ok(())
 }
 
-// Простой UDP клиент
-async fn udp_client() -> Result<(), Box<dyn Error>> {
-    let socket = UdpSocket::bind("127.0.0.1:0").await?;
-    println!("UDP клиент запущен");
+/// Демонстрация HTTP сервера
+pub async fn demonstrate_http_server() -> Result<(), Box<dyn Error>> {
+    let addr = "127.0.0.1:8080".parse()?;
+    let server = HttpServer::new(addr);
+    server.run().await
+}
 
-    socket.send_to(b"Привет, UDP сервер!", "127.0.0.1:8081").await?;
-    let mut buf = [0; 1024];
-    let (n, _) = socket.recv_from(&mut buf).await?;
-    println!("Получено: {}", String::from_utf8_lossy(&buf[0..n]));
+/// Демонстрация WebSocket клиента
+pub async fn demonstrate_websocket_client() -> Result<(), Box<dyn Error>> {
+    let addr = "127.0.0.1:8081".parse()?;
+    let client = WebSocketClient::new(addr);
+    let mut stream = client.connect().await?;
+
+    client.send_message(&mut stream, "Hello, WebSocket!").await?;
+    let response = client.receive_message(&mut stream).await?;
+    println!("Получен ответ: {}", response);
 
     Ok(())
 }
 
-pub async fn demonstrate_networking() {
-    println!("\n1. Демонстрация TCP сервера и клиента:");
-    let server_handle = tokio::spawn(tcp_server());
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    let client_handle = tokio::spawn(tcp_client());
-
-    if let Err(e) = client_handle.await? {
-        eprintln!("Ошибка клиента: {}", e);
-    }
-
-    println!("\n2. Демонстрация UDP сервера и клиента:");
-    let server_handle = tokio::spawn(udp_server());
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    let client_handle = tokio::spawn(udp_client());
-
-    if let Err(e) = client_handle.await? {
-        eprintln!("Ошибка клиента: {}", e);
-    }
+/// Демонстрация UDP сервера
+pub async fn demonstrate_udp_server() -> Result<(), Box<dyn Error>> {
+    let addr = "127.0.0.1:8082".parse()?;
+    let server = UdpServer::new(addr);
+    server.run().await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio;
+    use tokio::time::sleep;
 
     #[tokio::test]
-    async fn test_tcp_connection() {
-        let server_handle = tokio::spawn(tcp_server());
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        assert!(tcp_client().await.is_ok());
+    async fn test_http_server() {
+        let addr = "127.0.0.1:8083".parse().unwrap();
+        let server = HttpServer::new(addr);
+        
+        // Запускаем сервер в отдельном потоке
+        let server_handle = tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                eprintln!("Ошибка сервера: {}", e);
+            }
+        });
+        
+        // Даем серверу время на запуск
+        sleep(Duration::from_millis(100)).await;
+        
+        // Проверяем, что сервер запустился
+        assert!(!server_handle.is_finished());
+        
+        // Отменяем сервер
+        server_handle.abort();
     }
 
     #[tokio::test]
-    async fn test_udp_connection() {
-        let server_handle = tokio::spawn(udp_server());
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        assert!(udp_client().await.is_ok());
+    async fn test_websocket_client() {
+        let addr = "127.0.0.1:8084".parse().unwrap();
+        let client = WebSocketClient::new(addr);
+        
+        // Проверяем, что клиент не может подключиться к несуществующему серверу
+        let result = client.connect().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_udp_server() {
+        let addr = "127.0.0.1:8085".parse().unwrap();
+        let server = UdpServer::new(addr);
+        
+        // Запускаем сервер в отдельном потоке
+        let server_handle = tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                eprintln!("Ошибка сервера: {}", e);
+            }
+        });
+        
+        // Даем серверу время на запуск
+        sleep(Duration::from_millis(100)).await;
+        
+        // Проверяем, что сервер запустился
+        assert!(!server_handle.is_finished());
+        
+        // Отменяем сервер
+        server_handle.abort();
     }
 } 

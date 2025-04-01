@@ -1,186 +1,294 @@
-//! Демонстрация работы с базой данных в Rust
+//! Модуль для демонстрации работы с базами данных в Rust
 //! 
-//! Этот модуль показывает основные концепции работы с базой данных:
-//! - Подключение к базе данных
+//! Этот модуль показывает различные аспекты работы с БД:
 //! - CRUD операции
 //! - Транзакции
 //! - Миграции
-//! - Кэширование
-//! - Оптимизация запросов
+//! - Асинхронные запросы
 
 use sqlx::{Pool, Postgres, Row};
+use sqlx::postgres::PgPoolOptions;
 use std::error::Error;
+use chrono::{DateTime, Utc};
+use tokio::time::Duration;
 
-pub async fn demonstrate_database() -> Result<(), Box<dyn std::error::Error>> {
-    // Демонстрация подключения к базе данных
-    println!("\n1. Демонстрация подключения к базе данных:");
-    let pool = connect_to_database().await?;
-    println!("Подключение к базе данных успешно");
+/// Структура для представления пользователя
+#[derive(Debug)]
+pub struct User {
+    pub id: i32,
+    pub name: String,
+    pub email: String,
+    pub created_at: DateTime<Utc>,
+}
 
-    // Демонстрация CRUD операций
-    println!("\n2. Демонстрация CRUD операций:");
-    let user = create_user(&pool, "test_user", "test@example.com").await?;
+/// Реализация CRUD операций для пользователей
+pub struct UserRepository {
+    pool: Pool<Postgres>,
+}
+
+impl UserRepository {
+    /// Создание нового репозитория
+    pub async fn new(database_url: &str) -> Result<Self, Box<dyn Error>> {
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await?;
+        Ok(Self { pool })
+    }
+
+    /// Создание пользователя
+    pub async fn create(&self, name: &str, email: &str) -> Result<User, Box<dyn Error>> {
+        let row = sqlx::query!(
+            r#"
+            INSERT INTO users (name, email, created_at)
+            VALUES ($1, $2, NOW())
+            RETURNING id, name, email, created_at
+            "#,
+            name,
+            email
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(User {
+            id: row.id,
+            name: row.name,
+            email: row.email,
+            created_at: row.created_at,
+        })
+    }
+
+    /// Получение пользователя по ID
+    pub async fn get_by_id(&self, id: i32) -> Result<Option<User>, Box<dyn Error>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT id, name, email, created_at
+            FROM users
+            WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| User {
+            id: row.id,
+            name: row.name,
+            email: row.email,
+            created_at: row.created_at,
+        }))
+    }
+
+    /// Обновление пользователя
+    pub async fn update(&self, id: i32, name: &str, email: &str) -> Result<User, Box<dyn Error>> {
+        let row = sqlx::query!(
+            r#"
+            UPDATE users
+            SET name = $1, email = $2
+            WHERE id = $3
+            RETURNING id, name, email, created_at
+            "#,
+            name,
+            email,
+            id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(User {
+            id: row.id,
+            name: row.name,
+            email: row.email,
+            created_at: row.created_at,
+        })
+    }
+
+    /// Удаление пользователя
+    pub async fn delete(&self, id: i32) -> Result<(), Box<dyn Error>> {
+        sqlx::query!(
+            r#"
+            DELETE FROM users
+            WHERE id = $1
+            "#,
+            id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Получение всех пользователей
+    pub async fn get_all(&self) -> Result<Vec<User>, Box<dyn Error>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, name, email, created_at
+            FROM users
+            ORDER BY id
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| User {
+                id: row.id,
+                name: row.name,
+                email: row.email,
+                created_at: row.created_at,
+            })
+            .collect())
+    }
+}
+
+/// Демонстрация CRUD операций
+pub async fn demonstrate_crud_operations() -> Result<(), Box<dyn Error>> {
+    let database_url = "postgres://postgres:postgres@localhost/rust_demo";
+    let repo = UserRepository::new(database_url).await?;
+
+    // Создание пользователя
+    let user = repo.create("Иван", "ivan@example.com").await?;
     println!("Создан пользователь: {:?}", user);
 
-    let user = read_user(&pool, user.id).await?;
-    println!("Прочитан пользователь: {:?}", user);
+    // Получение пользователя
+    if let Some(user) = repo.get_by_id(user.id).await? {
+        println!("Получен пользователь: {:?}", user);
+    }
 
-    let user = update_user(&pool, user.id, "updated_user", "updated@example.com").await?;
-    println!("Обновлен пользователь: {:?}", user);
+    // Обновление пользователя
+    let updated_user = repo.update(user.id, "Иван Иванов", "ivan.ivanov@example.com").await?;
+    println!("Обновлен пользователь: {:?}", updated_user);
 
-    delete_user(&pool, user.id).await?;
+    // Получение всех пользователей
+    let users = repo.get_all().await?;
+    println!("Все пользователи: {:?}", users);
+
+    // Удаление пользователя
+    repo.delete(user.id).await?;
     println!("Пользователь удален");
 
-    // Демонстрация транзакций
-    println!("\n3. Демонстрация транзакций:");
-    let mut transaction = pool.begin().await?;
-    let user1 = create_user_in_transaction(&mut transaction, "user1", "user1@example.com").await?;
-    let user2 = create_user_in_transaction(&mut transaction, "user2", "user2@example.com").await?;
-    transaction.commit().await?;
-    println!("Транзакция успешно завершена");
-
     Ok(())
 }
 
-// Структура пользователя
-#[derive(Debug)]
-struct User {
-    id: i32,
-    username: String,
-    email: String,
-}
+/// Демонстрация транзакций
+pub async fn demonstrate_transactions() -> Result<(), Box<dyn Error>> {
+    let database_url = "postgres://postgres:postgres@localhost/rust_demo";
+    let repo = UserRepository::new(database_url).await?;
 
-// Подключение к базе данных
-async fn connect_to_database() -> Result<Pool<Postgres>, Box<dyn Error>> {
-    let database_url = "postgres://postgres:postgres@localhost:5432/rust_demo";
-    let pool = Pool::connect(database_url).await?;
-    Ok(pool)
-}
+    // Начало транзакции
+    let mut tx = repo.pool.begin().await?;
 
-// CRUD операции
-async fn create_user(pool: &Pool<Postgres>, username: &str, email: &str) -> Result<User, Box<dyn Error>> {
-    let row = sqlx::query(
-        "INSERT INTO users (username, email) VALUES ($1, $2) RETURNING id, username, email"
+    // Создание пользователей в транзакции
+    let user1 = sqlx::query!(
+        r#"
+        INSERT INTO users (name, email, created_at)
+        VALUES ($1, $2, NOW())
+        RETURNING id, name, email, created_at
+        "#,
+        "Алексей",
+        "alex@example.com"
     )
-    .bind(username)
-    .bind(email)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
 
-    Ok(User {
-        id: row.get("id"),
-        username: row.get("username"),
-        email: row.get("email"),
-    })
-}
-
-async fn read_user(pool: &Pool<Postgres>, id: i32) -> Result<User, Box<dyn Error>> {
-    let row = sqlx::query("SELECT id, username, email FROM users WHERE id = $1")
-        .bind(id)
-        .fetch_one(pool)
-        .await?;
-
-    Ok(User {
-        id: row.get("id"),
-        username: row.get("username"),
-        email: row.get("email"),
-    })
-}
-
-async fn update_user(
-    pool: &Pool<Postgres>,
-    id: i32,
-    username: &str,
-    email: &str,
-) -> Result<User, Box<dyn Error>> {
-    let row = sqlx::query(
-        "UPDATE users SET username = $1, email = $2 WHERE id = $3 RETURNING id, username, email"
+    let user2 = sqlx::query!(
+        r#"
+        INSERT INTO users (name, email, created_at)
+        VALUES ($1, $2, NOW())
+        RETURNING id, name, email, created_at
+        "#,
+        "Мария",
+        "maria@example.com"
     )
-    .bind(username)
-    .bind(email)
-    .bind(id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
 
-    Ok(User {
-        id: row.get("id"),
-        username: row.get("username"),
-        email: row.get("email"),
-    })
-}
+    // Подтверждение транзакции
+    tx.commit().await?;
 
-async fn delete_user(pool: &Pool<Postgres>, id: i32) -> Result<(), Box<dyn Error>> {
-    sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    println!("Созданы пользователи в транзакции:");
+    println!("1. {:?}", user1);
+    println!("2. {:?}", user2);
+
     Ok(())
-}
-
-// Транзакции
-async fn create_user_in_transaction(
-    transaction: &mut sqlx::Transaction<'_, Postgres>,
-    username: &str,
-    email: &str,
-) -> Result<User, Box<dyn Error>> {
-    let row = sqlx::query(
-        "INSERT INTO users (username, email) VALUES ($1, $2) RETURNING id, username, email"
-    )
-    .bind(username)
-    .bind(email)
-    .fetch_one(transaction)
-    .await?;
-
-    Ok(User {
-        id: row.get("id"),
-        username: row.get("username"),
-        email: row.get("email"),
-    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::postgres::PgPoolOptions;
+    use tokio::time::sleep;
 
-    async fn setup_test_db() -> Result<Pool<Postgres>, Box<dyn Error>> {
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect("postgres://postgres:postgres@localhost:5432/rust_demo_test")
+    async fn setup_test_db() -> Result<UserRepository, Box<dyn Error>> {
+        let database_url = "postgres://postgres:postgres@localhost/rust_demo_test";
+        let repo = UserRepository::new(database_url).await?;
+        
+        // Очистка тестовой базы данных
+        sqlx::query!("TRUNCATE TABLE users CASCADE")
+            .execute(&repo.pool)
             .await?;
-
-        // Создание тестовой таблицы
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR NOT NULL,
-                email VARCHAR NOT NULL
-            )"
-        )
-        .execute(&pool)
-        .await?;
-
-        Ok(pool)
+        
+        Ok(repo)
     }
 
     #[tokio::test]
-    async fn test_crud_operations() {
-        let pool = setup_test_db().await.unwrap();
-        
-        // Создание
-        let user = create_user(&pool, "test_user", "test@example.com").await.unwrap();
-        assert_eq!(user.username, "test_user");
+    async fn test_user_repository() -> Result<(), Box<dyn Error>> {
+        let repo = setup_test_db().await?;
 
-        // Чтение
-        let read_user = read_user(&pool, user.id).await.unwrap();
-        assert_eq!(read_user.id, user.id);
+        // Создание пользователя
+        let user = repo.create("Тест", "test@example.com").await?;
+        assert_eq!(user.name, "Тест");
+        assert_eq!(user.email, "test@example.com");
 
-        // Обновление
-        let updated_user = update_user(&pool, user.id, "updated_user", "updated@example.com").await.unwrap();
-        assert_eq!(updated_user.username, "updated_user");
+        // Получение пользователя
+        let retrieved = repo.get_by_id(user.id).await?.unwrap();
+        assert_eq!(retrieved.id, user.id);
 
-        // Удаление
-        delete_user(&pool, user.id).await.unwrap();
-        assert!(read_user(&pool, user.id).await.is_err());
+        // Обновление пользователя
+        let updated = repo.update(user.id, "Обновленный", "updated@example.com").await?;
+        assert_eq!(updated.name, "Обновленный");
+        assert_eq!(updated.email, "updated@example.com");
+
+        // Удаление пользователя
+        repo.delete(user.id).await?;
+        assert!(repo.get_by_id(user.id).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_transaction_rollback() -> Result<(), Box<dyn Error>> {
+        let repo = setup_test_db().await?;
+        let mut tx = repo.pool.begin().await?;
+
+        // Создание пользователя в транзакции
+        let user = sqlx::query!(
+            r#"
+            INSERT INTO users (name, email, created_at)
+            VALUES ($1, $2, NOW())
+            RETURNING id, name, email, created_at
+            "#,
+            "Транзакция",
+            "transaction@example.com"
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Откат транзакции
+        tx.rollback().await?;
+
+        // Проверяем, что пользователь не был создан
+        let result = sqlx::query!(
+            r#"
+            SELECT id FROM users WHERE id = $1
+            "#,
+            user.id
+        )
+        .fetch_optional(&repo.pool)
+        .await?;
+
+        assert!(result.is_none());
+
+        Ok(())
     }
 } 

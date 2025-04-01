@@ -1,36 +1,36 @@
-# Auto-detect text files and perform LF normalization
+# Auto detect text files and perform LF normalization
 * text=auto
 
 # Rust source files
-*.rs text
+*.rs text diff=rust
 
-# Documentation files
-*.md text
+# Documentation
+*.md text diff=markdown
 *.txt text
 
-# Script files
+# Scripts
 *.sh text eol=lf
 *.bat text eol=crlf
 
-# Configuration files
+# Configs
 *.toml text
 *.yml text
 *.yaml text
 *.json text
 
-# Graphics files
+# Graphics
 *.png binary
 *.jpg binary
 *.gif binary
 *.ico binary
 
-# Font files
+# Fonts
 *.ttf binary
 *.eot binary
 *.woff binary
 *.woff2 binary
 
-# Archive files
+# Archives
 *.zip binary
 *.tar binary
 *.gz binary 

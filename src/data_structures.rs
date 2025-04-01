@@ -1,90 +1,46 @@
-//! Демонстрация структур данных в Rust
+//! Модуль для демонстрации структур данных в Rust
 //! 
-//! Этот модуль показывает основные концепции:
-//! - Стек
-//! - Очередь
-//! - Связанный список
-//! - Дерево
-//! - Граф
-//! - Хеш-таблица
+//! Этот модуль показывает различные структуры данных:
+//! - Связные списки
+//! - Деревья
+//! - Графы
+//! - Хеш-таблицы
+//! - Очереди и стеки
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::Hash;
 
-// Реализация стека
-struct Stack<T> {
-    items: Vec<T>,
-}
-
-impl<T> Stack<T> {
-    fn new() -> Self {
-        Stack {
-            items: Vec::new(),
-        }
-    }
-
-    fn push(&mut self, item: T) {
-        self.items.push(item);
-    }
-
-    fn pop(&mut self) -> Option<T> {
-        self.items.pop()
-    }
-
-    fn peek(&self) -> Option<&T> {
-        self.items.last()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-}
-
-// Реализация очереди
-struct Queue<T> {
-    items: VecDeque<T>,
-}
-
-impl<T> Queue<T> {
-    fn new() -> Self {
-        Queue {
-            items: VecDeque::new(),
-        }
-    }
-
-    fn enqueue(&mut self, item: T) {
-        self.items.push_back(item);
-    }
-
-    fn dequeue(&mut self) -> Option<T> {
-        self.items.pop_front()
-    }
-
-    fn peek(&self) -> Option<&T> {
-        self.items.front()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-}
-
-// Реализация связанного списка
+/// Узел связного списка
 #[derive(Debug)]
-struct Node<T> {
-    value: T,
-    next: Option<Box<Node<T>>>,
+pub struct Node<T> {
+    pub value: T,
+    pub next: Option<Box<Node<T>>>,
 }
 
-struct LinkedList<T> {
+impl<T> Node<T> {
+    /// Создание нового узла
+    pub fn new(value: T) -> Self {
+        Self {
+            value,
+            next: None,
+        }
+    }
+}
+
+/// Реализация связного списка
+#[derive(Debug)]
+pub struct LinkedList<T> {
     head: Option<Box<Node<T>>>,
 }
 
 impl<T> LinkedList<T> {
-    fn new() -> Self {
-        LinkedList { head: None }
+    /// Создание нового связного списка
+    pub fn new() -> Self {
+        Self { head: None }
     }
 
-    fn push_front(&mut self, value: T) {
+    /// Добавление элемента в начало списка
+    pub fn push_front(&mut self, value: T) {
         let new_node = Box::new(Node {
             value,
             next: self.head.take(),
@@ -92,56 +48,187 @@ impl<T> LinkedList<T> {
         self.head = Some(new_node);
     }
 
-    fn pop_front(&mut self) -> Option<T> {
+    /// Удаление элемента из начала списка
+    pub fn pop_front(&mut self) -> Option<T> {
         self.head.take().map(|node| {
             self.head = node.next;
             node.value
         })
     }
 
-    fn is_empty(&self) -> bool {
-        self.head.is_none()
+    /// Получение длины списка
+    pub fn len(&self) -> usize {
+        let mut count = 0;
+        let mut current = &self.head;
+        while let Some(node) = current {
+            count += 1;
+            current = &node.next;
+        }
+        count
     }
 }
 
-pub fn demonstrate_data_structures() {
-    println!("\n1. Демонстрация стека:");
-    let mut stack = Stack::new();
-    stack.push(1);
-    stack.push(2);
-    stack.push(3);
-    println!("Верхний элемент стека: {:?}", stack.peek());
-    while let Some(item) = stack.pop() {
-        println!("Извлечено из стека: {}", item);
+/// Реализация бинарного дерева
+#[derive(Debug)]
+pub struct TreeNode<T> {
+    pub value: T,
+    pub left: Option<Box<TreeNode<T>>>,
+    pub right: Option<Box<TreeNode<T>>>,
+}
+
+impl<T> TreeNode<T> {
+    /// Создание нового узла дерева
+    pub fn new(value: T) -> Self {
+        Self {
+            value,
+            left: None,
+            right: None,
+        }
     }
 
-    println!("\n2. Демонстрация очереди:");
-    let mut queue = Queue::new();
-    queue.enqueue(1);
-    queue.enqueue(2);
-    queue.enqueue(3);
-    println!("Первый элемент очереди: {:?}", queue.peek());
-    while let Some(item) = queue.dequeue() {
-        println!("Извлечено из очереди: {}", item);
+    /// Добавление левого потомка
+    pub fn add_left(&mut self, value: T) {
+        self.left = Some(Box::new(TreeNode::new(value)));
     }
 
-    println!("\n3. Демонстрация связанного списка:");
+    /// Добавление правого потомка
+    pub fn add_right(&mut self, value: T) {
+        self.right = Some(Box::new(TreeNode::new(value)));
+    }
+}
+
+/// Реализация графа
+#[derive(Debug)]
+pub struct Graph<T: Hash + Eq> {
+    vertices: HashSet<T>,
+    edges: HashMap<T, HashSet<T>>,
+}
+
+impl<T: Hash + Eq> Graph<T> {
+    /// Создание нового графа
+    pub fn new() -> Self {
+        Self {
+            vertices: HashSet::new(),
+            edges: HashMap::new(),
+        }
+    }
+
+    /// Добавление вершины
+    pub fn add_vertex(&mut self, vertex: T) {
+        self.vertices.insert(vertex);
+        self.edges.entry(vertex).or_insert_with(HashSet::new);
+    }
+
+    /// Добавление ребра
+    pub fn add_edge(&mut self, from: T, to: T) {
+        self.add_vertex(from.clone());
+        self.add_vertex(to.clone());
+        self.edges.get_mut(&from).unwrap().insert(to);
+    }
+
+    /// Получение соседей вершины
+    pub fn get_neighbors(&self, vertex: &T) -> Option<&HashSet<T>> {
+        self.edges.get(vertex)
+    }
+}
+
+/// Реализация стека
+#[derive(Debug)]
+pub struct Stack<T> {
+    data: Vec<T>,
+}
+
+impl<T> Stack<T> {
+    /// Создание нового стека
+    pub fn new() -> Self {
+        Self {
+            data: Vec::new(),
+        }
+    }
+
+    /// Добавление элемента в стек
+    pub fn push(&mut self, value: T) {
+        self.data.push(value);
+    }
+
+    /// Удаление элемента из стека
+    pub fn pop(&mut self) -> Option<T> {
+        self.data.pop()
+    }
+
+    /// Просмотр верхнего элемента стека
+    pub fn peek(&self) -> Option<&T> {
+        self.data.last()
+    }
+}
+
+/// Реализация очереди
+#[derive(Debug)]
+pub struct Queue<T> {
+    data: VecDeque<T>,
+}
+
+impl<T> Queue<T> {
+    /// Создание новой очереди
+    pub fn new() -> Self {
+        Self {
+            data: VecDeque::new(),
+        }
+    }
+
+    /// Добавление элемента в очередь
+    pub fn enqueue(&mut self, value: T) {
+        self.data.push_back(value);
+    }
+
+    /// Удаление элемента из очереди
+    pub fn dequeue(&mut self) -> Option<T> {
+        self.data.pop_front()
+    }
+
+    /// Просмотр первого элемента очереди
+    pub fn peek(&self) -> Option<&T> {
+        self.data.front()
+    }
+}
+
+/// Демонстрация структур данных
+pub fn demonstrate_data_structures() -> Result<(), Box<dyn std::error::Error>> {
+    // Демонстрация связного списка
     let mut list = LinkedList::new();
     list.push_front(1);
     list.push_front(2);
     list.push_front(3);
-    while let Some(item) = list.pop_front() {
-        println!("Извлечено из списка: {}", item);
-    }
+    println!("Связный список: {:?}", list);
 
-    println!("\n4. Демонстрация хеш-таблицы:");
-    let mut map = HashMap::new();
-    map.insert("key1", "value1");
-    map.insert("key2", "value2");
-    map.insert("key3", "value3");
-    for (key, value) in &map {
-        println!("{}: {}", key, value);
-    }
+    // Демонстрация бинарного дерева
+    let mut tree = TreeNode::new(1);
+    tree.add_left(2);
+    tree.add_right(3);
+    println!("Бинарное дерево: {:?}", tree);
+
+    // Демонстрация графа
+    let mut graph = Graph::new();
+    graph.add_edge(1, 2);
+    graph.add_edge(2, 3);
+    graph.add_edge(1, 3);
+    println!("Граф: {:?}", graph);
+
+    // Демонстрация стека
+    let mut stack = Stack::new();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    println!("Стек: {:?}", stack);
+
+    // Демонстрация очереди
+    let mut queue = Queue::new();
+    queue.enqueue(1);
+    queue.enqueue(2);
+    queue.enqueue(3);
+    println!("Очередь: {:?}", queue);
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -149,10 +236,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_linked_list() {
+        let mut list = LinkedList::new();
+        list.push_front(1);
+        list.push_front(2);
+        assert_eq!(list.len(), 2);
+        assert_eq!(list.pop_front(), Some(2));
+        assert_eq!(list.pop_front(), Some(1));
+        assert_eq!(list.pop_front(), None);
+    }
+
+    #[test]
     fn test_stack() {
         let mut stack = Stack::new();
         stack.push(1);
         stack.push(2);
+        assert_eq!(stack.peek(), Some(&2));
         assert_eq!(stack.pop(), Some(2));
         assert_eq!(stack.pop(), Some(1));
         assert_eq!(stack.pop(), None);
@@ -163,18 +262,9 @@ mod tests {
         let mut queue = Queue::new();
         queue.enqueue(1);
         queue.enqueue(2);
+        assert_eq!(queue.peek(), Some(&1));
         assert_eq!(queue.dequeue(), Some(1));
         assert_eq!(queue.dequeue(), Some(2));
         assert_eq!(queue.dequeue(), None);
-    }
-
-    #[test]
-    fn test_linked_list() {
-        let mut list = LinkedList::new();
-        list.push_front(1);
-        list.push_front(2);
-        assert_eq!(list.pop_front(), Some(2));
-        assert_eq!(list.pop_front(), Some(1));
-        assert_eq!(list.pop_front(), None);
     }
 } 

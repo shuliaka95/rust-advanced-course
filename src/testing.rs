@@ -1,123 +1,227 @@
-//! Демонстрация тестирования в Rust
+//! Модуль для демонстрации тестирования в Rust
 //! 
-//! Этот модуль показывает основные концепции:
+//! Этот модуль показывает различные аспекты тестирования:
 //! - Модульные тесты
 //! - Интеграционные тесты
+//! - Асинхронные тесты
+//! - Тесты с моками
 //! - Тесты производительности
-//! - Моки
-//! - Тестирование асинхронного кода
 
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::time::Duration;
+use tokio::time::sleep;
+use mockall::predicate::*;
+use mockall::automock;
 
-// Структура для демонстрации
-#[derive(Debug, Clone)]
-struct User {
-    id: i32,
-    name: String,
-    email: String,
+/// Трейт для демонстрации моков
+#[automock]
+pub trait DataProvider {
+    fn get_data(&self) -> Vec<String>;
+    fn process_data(&self, data: &str) -> Result<String, String>;
 }
 
-// Трейт для демонстрации моков
-trait Database {
-    fn get_user(&self, id: i32) -> Option<User>;
+/// Структура для демонстрации тестирования
+#[derive(Debug)]
+pub struct TestDemo {
+    data: Vec<String>,
 }
 
-// Реализация мока
-struct MockDatabase {
-    users: std::collections::HashMap<i32, User>,
+/// Структура для демонстрации асинхронного тестирования
+#[derive(Debug)]
+pub struct AsyncTestDemo {
+    provider: Box<dyn DataProvider>,
 }
 
-impl Database for MockDatabase {
-    fn get_user(&self, id: i32) -> Option<User> {
-        self.users.get(&id).cloned()
+impl TestDemo {
+    /// Создание нового экземпляра
+    pub fn new(data: Vec<String>) -> Self {
+        Self { data }
+    }
+
+    /// Фильтрация данных
+    pub fn filter_data(&self, predicate: &str) -> Vec<String> {
+        self.data
+            .iter()
+            .filter(|item| item.contains(predicate))
+            .cloned()
+            .collect()
+    }
+
+    /// Сортировка данных
+    pub fn sort_data(&self) -> Vec<String> {
+        let mut sorted = self.data.clone();
+        sorted.sort();
+        sorted
+    }
+
+    /// Объединение данных
+    pub fn combine_data(&self, other: &[String]) -> Vec<String> {
+        let mut combined = self.data.clone();
+        combined.extend_from_slice(other);
+        combined
     }
 }
 
-// Счетчик для демонстрации
-struct Counter {
-    value: AtomicI32,
-}
+impl AsyncTestDemo {
+    /// Создание нового экземпляра
+    pub fn new(provider: Box<dyn DataProvider>) -> Self {
+        Self { provider }
+    }
 
-impl Counter {
-    fn new() -> Self {
-        Counter {
-            value: AtomicI32::new(0),
+    /// Асинхронная обработка данных
+    pub async fn process_data(&self) -> Result<Vec<String>, String> {
+        let data = self.provider.get_data();
+        let mut results = Vec::new();
+
+        for item in data {
+            // Имитация асинхронной операции
+            sleep(Duration::from_millis(100)).await;
+            
+            match self.provider.process_data(&item) {
+                Ok(result) => results.push(result),
+                Err(e) => return Err(e),
+            }
         }
+
+        Ok(results)
     }
 
-    fn increment(&self) {
-        self.value.fetch_add(1, Ordering::SeqCst);
-    }
+    /// Асинхронная фильтрация данных
+    pub async fn filter_data(&self, predicate: &str) -> Result<Vec<String>, String> {
+        let data = self.provider.get_data();
+        let mut results = Vec::new();
 
-    fn get_value(&self) -> i32 {
-        self.value.load(Ordering::SeqCst)
+        for item in data {
+            if item.contains(predicate) {
+                // Имитация асинхронной операции
+                sleep(Duration::from_millis(50)).await;
+                
+                match self.provider.process_data(&item) {
+                    Ok(result) => results.push(result),
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        Ok(results)
     }
 }
 
-pub fn demonstrate_testing() {
-    println!("\n1. Демонстрация счетчика:");
-    let counter = Counter::new();
-    counter.increment();
-    counter.increment();
-    counter.increment();
-    println!("Значение счетчика: {}", counter.get_value());
+/// Демонстрация тестирования
+pub fn demonstrate_testing() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Демонстрация тестирования ===");
 
-    println!("\n2. Демонстрация пользователя:");
-    let user = User {
-        id: 1,
-        name: "John Doe".to_string(),
-        email: "john@example.com".to_string(),
-    };
-    println!("Пользователь: {:?}", user);
+    // Демонстрация базового тестирования
+    println!("\n1. Базовое тестирование:");
+    let demo = TestDemo::new(vec![
+        "test1".to_string(),
+        "test2".to_string(),
+        "test3".to_string(),
+    ]);
+    println!("Отфильтрованные данные: {:?}", demo.filter_data("test"));
+    println!("Отсортированные данные: {:?}", demo.sort_data());
+    println!(
+        "Объединенные данные: {:?}",
+        demo.combine_data(&["test4".to_string(), "test5".to_string()])
+    );
 
-    println!("\n3. Демонстрация мока базы данных:");
-    let mut mock_db = MockDatabase {
-        users: std::collections::HashMap::new(),
-    };
-    mock_db.users.insert(1, user.clone());
-    if let Some(user) = mock_db.get_user(1) {
-        println!("Найден пользователь: {:?}", user);
+    Ok(())
+}
+
+/// Демонстрация асинхронного тестирования
+pub async fn demonstrate_async_testing() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Демонстрация асинхронного тестирования ===");
+
+    // Создание мока провайдера данных
+    let mut mock_provider = MockDataProvider::new();
+    mock_provider
+        .expect_get_data()
+        .returning(|| vec!["test1".to_string(), "test2".to_string()]);
+    mock_provider
+        .expect_process_data()
+        .returning(|data| Ok(format!("processed_{}", data)));
+
+    let demo = AsyncTestDemo::new(Box::new(mock_provider));
+
+    // Демонстрация асинхронной обработки
+    println!("\n1. Асинхронная обработка:");
+    match demo.process_data().await {
+        Ok(results) => println!("Результаты обработки: {:?}", results),
+        Err(e) => println!("Ошибка обработки: {}", e),
     }
+
+    // Демонстрация асинхронной фильтрации
+    println!("\n2. Асинхронная фильтрация:");
+    match demo.filter_data("test").await {
+        Ok(results) => println!("Отфильтрованные результаты: {:?}", results),
+        Err(e) => println!("Ошибка фильтрации: {}", e),
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mockall::predicate::*;
 
     #[test]
-    fn test_counter() {
-        let counter = Counter::new();
-        assert_eq!(counter.get_value(), 0);
-        counter.increment();
-        assert_eq!(counter.get_value(), 1);
-        counter.increment();
-        assert_eq!(counter.get_value(), 2);
+    fn test_filter_data() {
+        let demo = TestDemo::new(vec![
+            "test1".to_string(),
+            "test2".to_string(),
+            "other".to_string(),
+        ]);
+        let filtered = demo.filter_data("test");
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.contains(&"test1".to_string()));
+        assert!(filtered.contains(&"test2".to_string()));
     }
 
     #[test]
-    fn test_mock_database() {
-        let mut mock_db = MockDatabase {
-            users: std::collections::HashMap::new(),
-        };
-        let user = User {
-            id: 1,
-            name: "John Doe".to_string(),
-            email: "john@example.com".to_string(),
-        };
-        mock_db.users.insert(1, user.clone());
-        assert_eq!(mock_db.get_user(1), Some(user));
-        assert_eq!(mock_db.get_user(2), None);
+    fn test_sort_data() {
+        let demo = TestDemo::new(vec![
+            "c".to_string(),
+            "a".to_string(),
+            "b".to_string(),
+        ]);
+        let sorted = demo.sort_data();
+        assert_eq!(sorted, vec!["a", "b", "c"]);
     }
 
     #[test]
-    fn test_user_creation() {
-        let user = User {
-            id: 1,
-            name: "John Doe".to_string(),
-            email: "john@example.com".to_string(),
-        };
-        assert_eq!(user.id, 1);
-        assert_eq!(user.name, "John Doe");
-        assert_eq!(user.email, "john@example.com");
+    fn test_combine_data() {
+        let demo = TestDemo::new(vec!["a".to_string(), "b".to_string()]);
+        let combined = demo.combine_data(&["c".to_string(), "d".to_string()]);
+        assert_eq!(combined, vec!["a", "b", "c", "d"]);
+    }
+
+    #[tokio::test]
+    async fn test_async_process_data() {
+        let mut mock_provider = MockDataProvider::new();
+        mock_provider
+            .expect_get_data()
+            .returning(|| vec!["test".to_string()]);
+        mock_provider
+            .expect_process_data()
+            .returning(|data| Ok(format!("processed_{}", data)));
+
+        let demo = AsyncTestDemo::new(Box::new(mock_provider));
+        let result = demo.process_data().await.unwrap();
+        assert_eq!(result, vec!["processed_test"]);
+    }
+
+    #[tokio::test]
+    async fn test_async_filter_data() {
+        let mut mock_provider = MockDataProvider::new();
+        mock_provider
+            .expect_get_data()
+            .returning(|| vec!["test1".to_string(), "other".to_string()]);
+        mock_provider
+            .expect_process_data()
+            .returning(|data| Ok(format!("processed_{}", data)));
+
+        let demo = AsyncTestDemo::new(Box::new(mock_provider));
+        let result = demo.filter_data("test").await.unwrap();
+        assert_eq!(result, vec!["processed_test1"]);
     }
 } 

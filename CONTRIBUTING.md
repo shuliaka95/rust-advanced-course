@@ -7,7 +7,7 @@
 1. Форкните репозиторий
 2. Клонируйте ваш форк:
    ```bash
-   git clone https://github.com/shuliaka95/rust-advanced-course.git
+   git clone https://github.com/yourusername/rust-advanced-course.git
    ```
 3. Создайте ветку для ваших изменений:
    ```bash
