@@ -1,0 +1,20 @@
+[package]
+name = "rust_learning"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "Продвинутый курс по Rust"
+license = "MIT"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+criterion = "0.5"
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+prometheus = "0.13"
+futures = "0.3"
+tokio-stream = "0.1" 
